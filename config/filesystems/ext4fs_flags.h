@@ -62,12 +62,19 @@ this:AddItem("Enable", "1")
 #define __EXT4FS_CFG_DIR_INDEXING__ 1
 
 /*--
-this:AddWidget("Spinbox", 1, 8, "Number of cache blocks")
+this:AddWidget("Spinbox", 1, 128, "Number of cache blocks")
 this:SetToolTip("This value determines how many blocks is cached. The 4 blocks "..
                 "is good enough to get nice read/write speed. Single cache "..
                 "allocate the size of block (at least 1 KiB).")
 --*/
 #define __EXT4FS_CFG_BLK_CACHE_SIZE__ 1
+
+/*--
+this:AddWidget("Combobox", "Write buffer strategy")
+this:AddItem("Write Through", "0")
+this:AddItem("Write Back", "1")
+--*/
+#define __EXT4FS_CFG_WR_BUF_STRATEGY__ 1
 
 #endif /* _EXT4FS_FLAGS_H_ */
 /*==============================================================================

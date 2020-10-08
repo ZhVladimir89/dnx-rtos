@@ -71,6 +71,7 @@ GLOBAL_VARIABLES_SECTION {
 /*==============================================================================
   Exported object definitions
 ==============================================================================*/
+PROGRAM_PARAMS(ls, STACK_DEPTH_LOW);
 
 /*==============================================================================
   Function definitions
@@ -80,7 +81,7 @@ GLOBAL_VARIABLES_SECTION {
  * @brief Cat main function
  */
 //==============================================================================
-int_main(ls, STACK_DEPTH_LOW, int argc, char *argv[])
+int main(int argc, char *argv[])
 {
         getcwd(global->cwd, CWD_MAX_LEN - 1);
 
@@ -146,13 +147,10 @@ int_main(ls, STACK_DEPTH_LOW, int argc, char *argv[])
 
                                 u32_t       size;
                                 const char *unit;
-                                if (st.st_size >= (u64_t)(10*GiB)) {
-                                        size = CONVERT_TO_GiB(st.st_size);
-                                        unit = "GiB";
-                                } else if (st.st_size >= 10*MiB) {
+                                if (st.st_size >= (u64_t)(1*GiB)) {
                                         size = CONVERT_TO_MiB(st.st_size);
                                         unit = "MiB";
-                                } else if (st.st_size >= 10*KiB) {
+                                } else if (st.st_size >= 1*MiB) {
                                         size = CONVERT_TO_KiB(st.st_size);
                                         unit = "KiB";
                                 } else {
@@ -179,9 +177,9 @@ int_main(ls, STACK_DEPTH_LOW, int argc, char *argv[])
                                 strftime(time, sizeof(time), "%d-%m-%Y %H:%M", &tm);
 
                                 printf("%s%s %9u %s"
-                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(24)"%s"
-                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(34)"%s"
-                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(51)"%s"
+                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(25)"%s"
+                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(35)"%s"
+                                       VT100_CURSOR_BACKWARD(999)VT100_CURSOR_FORWARD(52)"%s"
                                        VT100_RESET_ATTRIBUTES"\n",
                                        type, mode, size, unit, mod, time, dirent->d_name);
 

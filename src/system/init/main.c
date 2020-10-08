@@ -31,7 +31,6 @@
 ==============================================================================*/
 #include "cpu/cpuctl.h"
 #include "mm/heap.h"
-#include "mm/cache.h"
 #include "mm/mm.h"
 #include "mm/shm.h"
 #include "fs/vfs.h"
@@ -90,9 +89,6 @@ void dnxinit(void *arg)
         printk("Welcome to dnx RTOS %s!", get_OS_version());
         printk("Running on platform %s", get_platform_name());
 
-#if __OS_SYSTEM_FS_CACHE_ENABLE__ > 0
-        _assert(ESUCC == _cache_init());
-#endif
 #if __OS_ENABLE_SHARED_MEMORY__ > 0
         _assert(ESUCC == _shm_init());
 #endif
@@ -119,8 +115,8 @@ void dnxinit(void *arg)
 //==============================================================================
 int main(void)
 {
-        _cpuctl_init();
         _assert(ESUCC == _mm_init());
+        _cpuctl_init();
         _assert(ESUCC == _kernel_panic_init());
         _assert(ESUCC == _task_create(dnxinit, "", (1024 / sizeof(StackType_t)), NULL, NULL, NULL));
         _kernel_start();

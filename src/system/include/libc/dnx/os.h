@@ -356,14 +356,14 @@ static inline int get_average_CPU_load(avg_CPU_load_t *avg_CPU_load)
 
         // ...
 
-        printf("Context was switched %u times\n", (uint)get_tick_counter());
+        printf("Context was switched %lu times\n", get_tick_counter());
 
         // ...
 
    @endcode
  */
 //==============================================================================
-static inline u32_t get_tick_counter(void)
+static inline u64_t get_tick_counter(void)
 {
         return _builtinfunc(kernel_get_tick_counter);
 }
@@ -386,7 +386,7 @@ static inline u32_t get_tick_counter(void)
 
         // ...
 
-        printf("System works by %u ms\n", (uint)get_time_ms());
+        printf("System works by %lu ms\n", get_time_ms());
 
         // ...
 
@@ -395,7 +395,7 @@ static inline u32_t get_tick_counter(void)
  * @see get_uptime()
  */
 //==============================================================================
-static inline u32_t get_time_ms(void)
+static inline u64_t get_time_ms(void)
 {
         return _builtinfunc(kernel_get_time_ms);
 }
@@ -476,7 +476,7 @@ static inline const char *get_OS_name(void)
 //==============================================================================
 static inline const char *get_OS_version(void)
 {
-        return "2.2.1";
+        return "2.3.0";
 }
 
 //==============================================================================
@@ -502,7 +502,7 @@ static inline const char *get_OS_version(void)
 //==============================================================================
 static inline const char *get_OS_codename(void)
 {
-        return "Eagle";
+        return "Falcon";
 }
 
 //==============================================================================

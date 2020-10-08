@@ -43,14 +43,20 @@ extern "C" {
   Exported symbolic constants/macros
 ==============================================================================*/
 /** STANDARD STACK SIZES */
-#define STACK_DEPTH_MINIMAL             ((1   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_VERY_LOW            ((2   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_LOW                 ((4   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_MEDIUM              ((8   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_LARGE               ((16  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_VERY_LARGE          ((32  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_HUGE                ((64  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
-#define STACK_DEPTH_VERY_HUGE           ((128 * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__))
+#if __OS_TASK_KWORKER_MODE__ == 2
+#define _FS_STACK __OS_IO_STACK_DEPTH__
+#else
+#define _FS_STACK 0
+#endif
+
+#define STACK_DEPTH_MINIMAL             ((1   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_VERY_LOW            ((2   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_LOW                 ((4   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_MEDIUM              ((8   * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_LARGE               ((16  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_VERY_LARGE          ((32  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_HUGE                ((64  * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
+#define STACK_DEPTH_VERY_HUGE           ((128 * (__OS_TASK_MIN_STACK_DEPTH__)) + (__OS_IRQ_STACK_DEPTH__) + (_FS_STACK))
 #define STACK_DEPTH_CUSTOM(depth)       ((depth) + (__OS_IRQ_STACK_DEPTH__))
 
 #define _PROCESS_SYSCALL_FLAG(tid)      (1 << (tid))
@@ -74,6 +80,12 @@ extern "C" {
 #       define _PROGMAN_CXX
 #       define _PROGMAN_EXTERN_C extern
 #endif
+
+#define PROGRAM_PARAMS(_name_, stack_depth)\
+        static int main(int argc, char *argv[]);\
+        _PROGMAN_CXX const size_t __builtin_app_##_name_##_gs__ = sizeof(struct _GVAR_STRUCT_NAME);\
+        _PROGMAN_CXX const size_t __builtin_app_##_name_##_ss__ = stack_depth;\
+        _PROGMAN_CXX int __builtin_app_##_name_##_main(int argc, char *argv[]) {return main(argc, argv);}
 
 #define _IMPORT_PROGRAM(_name_)\
         _PROGMAN_EXTERN_C const size_t __builtin_app_##_name_##_gs__;\
@@ -127,7 +139,7 @@ typedef struct {
         bool        detached;           //!< independent process (no parent)
 } process_attr_t;
 
-/** USERSPACE: process attributes */
+/** USERSPACE: process statistics */
 typedef struct {
         const char *name;               //!< process name
         pid_t       pid;                //!< process ID
@@ -144,7 +156,18 @@ typedef struct {
         u16_t       stack_size;         //!< stack size
         u16_t       stack_max_usage;    //!< max stack usage
         i16_t       priority;           //!< priority
+        u16_t       syscalls;           //!< syscalls per second
 } process_stat_t;
+
+/** USERSPACE: thread statistics */
+typedef struct {
+        tid_t       tid;                //!< thread ID
+        u16_t       CPU_load;           //!< CPU load (1% = 10)
+        u16_t       stack_size;         //!< stack size
+        u16_t       stack_max_usage;    //!< max stack usage
+        i16_t       priority;           //!< priority
+        u16_t       syscalls;           //!< syscalls per second
+} thread_stat_t;
 
 /** USERSPACE: thread attributes */
 typedef struct {
@@ -196,11 +219,14 @@ extern int         _process_get_priority                (pid_t, int*);
 extern int         _process_get_container               (pid_t, _process_t**);
 extern int         _process_get_stat_seek               (size_t, process_stat_t*);
 extern int         _process_get_stat_pid                (pid_t, process_stat_t*);
-extern tid_t       _process_get_active_thread           (void);
+extern tid_t       _process_get_active_thread           (_process_t *process);
+extern pid_t       _process_get_active_process_pid      (void);
 extern u8_t        _process_get_max_threads             (_process_t*);
 extern int         _process_thread_create               (_process_t*, thread_func_t, const thread_attr_t*, void*, tid_t*);
 extern int         _process_thread_kill                 (_process_t*, tid_t);
 extern task_t     *_process_thread_get_task             (_process_t *proc, tid_t tid);
+extern int         _process_thread_get_stat             (pid_t, tid_t tid, thread_stat_t*);
+extern void        _process_syscall_stat_inc            (_process_t *proc, _process_t *kworker);
 extern void        _task_switched_in                    (task_t *task, void *task_tag);
 extern void        _task_switched_out                   (task_t *task, void *task_tag);
 extern void        _calculate_CPU_load                  (void);

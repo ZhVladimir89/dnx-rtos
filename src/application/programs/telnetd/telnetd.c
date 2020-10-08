@@ -84,6 +84,7 @@ static const thread_attr_t thread_attr = {
 /*==============================================================================
   Exported object definitions
 ==============================================================================*/
+PROGRAM_PARAMS(telnetd, STACK_DEPTH_VERY_LOW);
 
 /*==============================================================================
   Function definitions
@@ -264,7 +265,7 @@ exit:
                NET_INET_IPv4_c(sockaddr.addr),
                NET_INET_IPv4_d(sockaddr.addr));
 
-        socket_delete(sock);
+        socket_close(sock);
 
         if (mutex_lock(global->mtx, MAX_DELAY_MS)) {
                 global->conn_cnt--;
@@ -282,7 +283,7 @@ exit:
  * @return program status
  */
 //==============================================================================
-int_main(telnetd, STACK_DEPTH_VERY_LOW, int argc, char *argv[])
+int main(int argc, char *argv[])
 {
         (void) argc;
         (void) argv;
@@ -291,7 +292,18 @@ int_main(telnetd, STACK_DEPTH_VERY_LOW, int argc, char *argv[])
 
         mkdir("/run", 0777);
 
-        SOCKET *listener = socket_new(NET_FAMILY__INET, NET_PROTOCOL__TCP);
+
+        NET_INET_status_t netstat = {0};
+
+        do {
+                ifstatus(NET_FAMILY__INET, &netstat);
+                msleep(500);
+        } while (! ( (netstat.state == NET_INET_STATE__DHCP_CONFIGURED)
+                   ||(netstat.state == NET_INET_STATE__STATIC_IP) ) );
+
+
+
+        SOCKET *listener = socket_open(NET_FAMILY__INET, NET_PROTOCOL__TCP);
         if (!listener) {
                 global->msg = "Connection failed";
                 goto exit;
@@ -326,7 +338,7 @@ int_main(telnetd, STACK_DEPTH_VERY_LOW, int argc, char *argv[])
                 // check number of connections
                 if (global->conn_cnt >= NUMBER_OF_CONNECTIONS) {
                         puts("Reached maximum number of connections.");
-                        socket_delete(client);
+                        socket_close(client);
                         continue;
                 }
 
@@ -342,7 +354,7 @@ exit:
         }
 
         if (listener) {
-                socket_delete(listener);
+                socket_close(listener);
         }
 
         if (global->mtx) {

@@ -77,16 +77,18 @@ MODULE_NAME(RTC);
  * @param[out]          **device_handle        device allocated memory
  * @param[in ]            major                major device number
  * @param[in ]            minor                minor device number
+ * @param[in ]            config               optional module configuration
  *
  * @return One of errno value (errno.h)
  */
 //==============================================================================
-API_MOD_INIT(RTC, void **device_handle, u8_t major, u8_t minor)
+API_MOD_INIT(RTC, void **device_handle, u8_t major, u8_t minor, const void *config)
 {
-        UNUSED_ARG1(device_handle);
-        UNUSED_ARG1(major);
-        UNUSED_ARG1(minor);
-        UNUSED_ARG1(_module_name_);
+        UNUSED_ARG3(device_handle, config, _module_name_);
+
+        if (major != 0 or minor != 0) {
+                return ENODEV;
+        }
 
         SET_BIT(RCC->APB1ENR, RCC_APB1ENR_PWREN | RCC_APB1ENR_BKPEN);
         SET_BIT(PWR->CR, PWR_CR_DBP);
@@ -197,36 +199,33 @@ API_MOD_WRITE(RTC,
 {
         UNUSED_ARG2(device_handle, fattr);
 
-        if (*fpos == 0) {
-                count = count > sizeof(time_t) ? sizeof(time_t) : count;
+        count = count > sizeof(time_t) ? sizeof(time_t) : count;
 
-                time_t t = 0;
-                memcpy(&t, src, count);
+        time_t t = 0;
+        memcpy(&t, src, count);
 
-                sys_critical_section_begin();
-                {
-                        uint attempts = RTC_WRITE_ATTEMPTS;
-                        while (!(RTCP->CRL & RTC_CRL_RTOFF)) {
-                                if (--attempts == 0) {
-                                        sys_critical_section_end();
-                                        return EIO;
-                                }
+        sys_critical_section_begin();
+        {
+                uint attempts = RTC_WRITE_ATTEMPTS;
+                while (!(RTCP->CRL & RTC_CRL_RTOFF)) {
+                        if (--attempts == 0) {
+                                sys_critical_section_end();
+                                return EIO;
                         }
-
-                        SET_BIT(RTCP->CRL, RTC_CRL_CNF);
-                        WRITE_REG(RTCP->CNTH, t >> 16);
-                        WRITE_REG(RTCP->CNTL, t);
-                        CLEAR_BIT(RTCP->CRL, RTC_CRL_CNF);
-                        while (!(RTCP->CRL & RTC_CRL_RTOFF) && attempts--);
                 }
-                sys_critical_section_end();
 
-                *wrcnt = count;
-
-                return ESUCC;
-        } else {
-                return ESPIPE;
+                SET_BIT(RTCP->CRL, RTC_CRL_CNF);
+                WRITE_REG(RTCP->CNTH, t >> 16);
+                WRITE_REG(RTCP->CNTL, t);
+                CLEAR_BIT(RTCP->CRL, RTC_CRL_CNF);
+                while (!(RTCP->CRL & RTC_CRL_RTOFF) && attempts--);
         }
+        sys_critical_section_end();
+
+        *wrcnt = count;
+        *fpos  = 0;
+
+        return ESUCC;
 }
 
 //==============================================================================
@@ -253,21 +252,18 @@ API_MOD_READ(RTC,
 {
         UNUSED_ARG2(device_handle, fattr);
 
-        if (*fpos == 0) {
-                count = count > sizeof(time_t) ? sizeof(time_t) : count;
+        count = count > sizeof(time_t) ? sizeof(time_t) : count;
 
-                sys_critical_section_begin();
-                u32_t cnt = (RTCP->CNTH << 16) + RTCP->CNTL;
-                sys_critical_section_end();
+        sys_critical_section_begin();
+        u32_t cnt = (RTCP->CNTH << 16) + RTCP->CNTL;
+        sys_critical_section_end();
 
-                memcpy(dst, &cnt, count);
+        memcpy(dst, &cnt, count);
 
-                *rdcnt = count;
+        *rdcnt = count;
+        *fpos  = 0;
 
-                return ESUCC;
-        } else {
-                return ESPIPE;
-        }
+        return ESUCC;
 }
 
 //==============================================================================

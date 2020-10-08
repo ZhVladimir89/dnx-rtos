@@ -226,14 +226,15 @@ static void driver__remove(dev_t devid)
  * @param  modno        module number
  * @param  major        module major number
  * @param  minor        module minor number
+ * @param  config       module configuration (optional, NULL if not used)
  * @param  mem          module memory to be allocated by driver
  *
  * @return One of errno value.
  */
 //==============================================================================
-static inline int driver__initialize(u16_t modno, u8_t major, u8_t minor, void **mem)
+static inline int driver__initialize(u16_t modno, u8_t major, u8_t minor, const void *config, void **mem)
 {
-        return _drvreg_module_table[modno].IF.drv_init(mem, major, minor);
+        return _drvreg_module_table[modno].IF.drv_init(mem, major, minor, config);
 }
 
 //==============================================================================
@@ -259,12 +260,13 @@ static inline int driver__release(u16_t modno, void *mem)
  * @param [IN]  major               major number
  * @param [IN]  minor               minor number
  * @param [IN]  node_path           path name to create in the file system (can be NULL or empty string)
+ * @param [IN]  config              driver configuration (can be NULL)
  * @param [OUT] id                  module id (can be NULL)
  *
  * @return One of error code (errno)
  */
 //==============================================================================
-int _driver_init(const char *module, u8_t major, u8_t minor, const char *node_path, dev_t *id)
+int _driver_init(const char *module, u8_t major, u8_t minor, const char *node_path, const void *config, dev_t *id)
 {
         int err;
 
@@ -284,7 +286,7 @@ int _driver_init(const char *module, u8_t major, u8_t minor, const char *node_pa
         err             = driver__register(modno, major, minor, &drv);
         if (!err) {
 
-                err = driver__initialize(modno, major, minor, &drv->mem);
+                err = driver__initialize(modno, major, minor, config, &drv->mem);
                 if (!err) {
                         if (id) {
                                 *id = drv->devid;
@@ -315,7 +317,7 @@ int _driver_init(const char *module, u8_t major, u8_t minor, const char *node_pa
         } else {
                 switch (err) {
                 case EADDRINUSE: printk(DRIVER_NAME" already initialized", DRIVER_NAME_ARGS); break;
-                default        : printk(DRIVER_NAME" does not exist", DRIVER_NAME_ARGS); break;
+                default        : printk(DRIVER_NAME" not exist", DRIVER_NAME_ARGS); break;
                 }
         }
 
@@ -649,8 +651,12 @@ int _device_lock(dev_lock_t *dev_lock)
                 _kernel_scheduler_lock();
                 {
                         if (*dev_lock == 0) {
-                                *dev_lock = _syscall_client_PID[_process_get_active_thread()];
 
+#if (__OS_TASK_KWORKER_MODE__ == 0) || (__OS_TASK_KWORKER_MODE__ == 1)
+                                *dev_lock = _syscall_client_PID[_process_get_active_thread(NULL)];
+#elif (__OS_TASK_KWORKER_MODE__ == 2)
+                                *dev_lock = _process_get_active_process_pid();
+#endif
                                 if (*dev_lock == 0) {
                                         _process_get_pid(_kworker_proc, dev_lock);
                                 }
@@ -688,8 +694,15 @@ int _device_unlock(dev_lock_t *dev_lock, bool force)
                         pid_t kworker_pid = 0;
                         _process_get_pid(_kworker_proc, &kworker_pid);
 
+                        pid_t client_pid = 0;
+#if (__OS_TASK_KWORKER_MODE__ == 0) || (__OS_TASK_KWORKER_MODE__ == 1)
+                        client_pid = _syscall_client_PID[_process_get_active_thread(NULL)];
+#elif (__OS_TASK_KWORKER_MODE__ == 2)
+                        client_pid = _process_get_active_process_pid();
+#endif
+
                         if (   force    == true
-                           || *dev_lock == _syscall_client_PID[_process_get_active_thread()]
+                           || *dev_lock == client_pid
                            || *dev_lock == kworker_pid) {
 
                                 *dev_lock = 0;
@@ -725,7 +738,14 @@ int _device_get_access(dev_lock_t *dev_lock)
                         pid_t kworker_pid = 0;
                         _process_get_pid(_kworker_proc, &kworker_pid);
 
-                        if (  *dev_lock == _syscall_client_PID[_process_get_active_thread()]
+                        pid_t client_pid = 0;
+#if (__OS_TASK_KWORKER_MODE__ == 0) || (__OS_TASK_KWORKER_MODE__ == 1)
+                        client_pid = _syscall_client_PID[_process_get_active_thread(NULL)];
+#elif (__OS_TASK_KWORKER_MODE__ == 2)
+                        client_pid = _process_get_active_process_pid();
+#endif
+
+                        if (  *dev_lock == client_pid
                            || *dev_lock == kworker_pid) {
 
                                 err = ESUCC;

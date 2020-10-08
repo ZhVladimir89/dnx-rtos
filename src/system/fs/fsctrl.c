@@ -96,8 +96,8 @@ int _mount(const char            *FS_name,
                                         printk("Filesystem '%s' mounted in %s",
                                                FS_name, mount_point->PATH);
                                 } else {
-                                        printk("Filesystem '%s' mount error (%d)",
-                                               FS_name, err);
+                                        printk("Filesystem '%s' on '%s' mount error (%d)",
+                                               FS_name, src_path->PATH, err);
                                 }
 
                                 break;
@@ -105,7 +105,7 @@ int _mount(const char            *FS_name,
                 }
 
                 if (err == ENOENT) {
-                        printk("Filesystem '%s' does not exist", FS_name);
+                        printk("Filesystem '%s' not exist", FS_name);
                 }
         }
 

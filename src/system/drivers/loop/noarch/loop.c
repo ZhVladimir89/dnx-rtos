@@ -110,13 +110,14 @@ MODULE_NAME(LOOP);
  * @param[out]          **device_handle        device allocated memory
  * @param[in ]            major                major device number
  * @param[in ]            minor                minor device number
+ * @param[in ]            config               optional module configuration
  *
  * @return One of errno value (errno.h)
  */
 //==============================================================================
-API_MOD_INIT(LOOP, void **device_handle, u8_t major, u8_t minor)
+API_MOD_INIT(LOOP, void **device_handle, u8_t major, u8_t minor, const void *config)
 {
-        UNUSED_ARG1(major);
+        UNUSED_ARG2(major, config);
 
         if (minor != 0) {
                 return ENODEV;
@@ -171,7 +172,7 @@ API_MOD_RELEASE(LOOP, void *device_handle)
                 sys_mutex_unlock(mtx);
                 sys_mutex_destroy(mtx);
                 sys_flag_destroy(hdl->flag);
-                sys_free(device_handle);
+                sys_free(&device_handle);
         }
 
         return err;

@@ -127,7 +127,7 @@ typedef struct {
         const char *p_stderr;           /*!< stderr file path (minor).*/
         const char *cwd;                /*!< working directory path.*/
         i16_t       priority;           /*!< process priority.*/
-        bool        has_parent;         /*!< parent exist and is waiting for this process.*/
+        bool        detached;           /*!< process detached from parent.*/
 } process_attr_t;
 
 /**
@@ -251,15 +251,13 @@ extern int _errno;
                 .p_stdin   = NULL,
                 .p_stdout  = NULL,
                 .p_stderr  = NULL,
-                .no_parent = false
+                .detached  = false
         }
 
         pid_t pid = process_create("ls /", &attr);
         if (pid) {
-                process_wait(pid, MAX_DELAY_MS);
-
                 int exit_code = 0;
-                process_delete(pid, &exit_code);
+                process_wait(pid, &exit_code, MAX_DELAY_MS);
         } else {
                 perror("Program not started");
 
@@ -310,7 +308,7 @@ static inline pid_t process_create(const char *cmd, const process_attr_t *attr)
                 .p_stdin   = NULL,
                 .p_stdout  = NULL,
                 .p_stderr  = NULL,
-                .parent    = true
+                .detached  = true
         }
 
         pid_t pid = process_create("cat", &attr);
@@ -334,6 +332,10 @@ static inline int process_kill(pid_t pid)
 {
         int r = -1;
         syscall(SYSCALL_PROCESSKILL, &r, &pid);
+
+        int _;
+        syscall(SYSCALL_PROCESSCLEANZOMBIE, &_, &pid, NULL);
+
         return r;
 }
 
@@ -371,7 +373,7 @@ static inline int process_kill(pid_t pid)
                 .p_stdin   = NULL,
                 .p_stdout  = NULL,
                 .p_stderr  = NULL,
-                .no_parent = false
+                .detached  = false
         }
 
         int   status = -1;
@@ -398,6 +400,7 @@ static inline int process_wait(pid_t pid, int *status, const u32_t timeout)
                 _errno = _builtinfunc(flag_wait, flag, _PROCESS_EXIT_FLAG(0), timeout);
                 if (_errno == 0) {
                         syscall(SYSCALL_PROCESSCLEANZOMBIE, &r, &pid, status);
+                        _builtinfunc(sleep_ms, 1);
                 }
                 r = _errno ? -1 : 0;
         }
@@ -593,12 +596,20 @@ static inline int process_get_priority(pid_t pid)
         {
                 errno = 0;
 
-                tid_t tid = thread_create(thread, NULL, (void*)0);
+                const thread_attr_t attr = {
+                        .stack_depth = STACK_DEPTH_LOW,
+                        .priority    = PRIORITY_NORMAL,
+                        .detached    = false
+                }
+
+                tid_t tid = thread_create(thread, &attr, NULL);
                 if (tid) {
                         printf("Thread %d created\n", (int)tid);
                 } else {
                         perror("Thread not created");
                 }
+
+                // ...
         }
 
         // ...
@@ -820,6 +831,48 @@ static inline int thread_join2(tid_t tid, uint32_t timeout_ms)
 static inline int thread_join(tid_t tid)
 {
         return thread_join2(tid, MAX_DELAY_MS);
+}
+
+//==============================================================================
+/**
+ * @brief Function returns statistics of selected thread.
+ *
+ * The function thread_stat() return statistics of thread selected by <i>tid</i>.
+ *
+ * @param pid       process ID
+ * @param tid       thread ID
+ * @param stat      statistics
+ *
+ * @exception | @ref EINVAL
+ * @exception | @ref ENOENT
+ *
+ * @return Return 0 on success. On error, -1 is returned, and
+ * <b>errno</b> is set appropriately.
+ *
+ * @b Example
+ * @code
+        #include <dnx/thread.h>
+
+        // ...
+
+        thread_stat_t stat;
+
+        if (thread_stat(getpid(), 0, &stat) == 0) {
+                printf("CPU load: %d\n", stat.CPU_load);
+        }
+
+        // ...
+
+   @endcode
+ *
+ * @see process_stat()
+ */
+//==============================================================================
+static inline int thread_stat(pid_t pid, tid_t tid, thread_stat_t *stat)
+{
+        int r = -1;
+        syscall(SYSCALL_THREADSTAT, &r, &pid, &tid, stat);
+        return r;
 }
 
 //==============================================================================

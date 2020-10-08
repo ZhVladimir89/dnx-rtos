@@ -38,6 +38,7 @@
 ==============================================================================*/
 #define RELEASE_TIMEOUT                         100
 #define RX_WAIT_TIMEOUT                         MAX_DELAY_MS
+#define TX_WAIT_TIMEOUT                         300000
 #define MTX_BLOCK_TIMEOUT                       MAX_DELAY_MS
 
 /*==============================================================================
@@ -81,14 +82,13 @@ struct UART_mem *_UART_mem[_UART_COUNT];
  * @param[out]          **device_handle        device allocated memory
  * @param[in ]            major                major device number
  * @param[in ]            minor                minor device number
+ * @param[in ]            config               optional module configuration
  *
  * @return One of errno value (errno.h)
  */
 //==============================================================================
-API_MOD_INIT(UART, void **device_handle, u8_t major, u8_t minor)
+API_MOD_INIT(UART, void **device_handle, u8_t major, u8_t minor, const void *config)
 {
-        UNUSED_ARG1(minor);
-
         if (major >= _UART_COUNT || minor != 0) {
                 return ENODEV;
         }
@@ -117,7 +117,12 @@ API_MOD_INIT(UART, void **device_handle, u8_t major, u8_t minor)
                 if (!err) {
                         _UART_mem[major]->major  = major;
                         _UART_mem[major]->config = UART_DEFAULT_CONFIG;
-                        _UART_LLD__configure(major, &UART_DEFAULT_CONFIG);
+
+                        if (config) {
+                                _UART_mem[major]->config = *cast(struct UART_config *, config);
+                        }
+
+                        _UART_LLD__configure(major, &_UART_mem[major]->config);
                 }
 
                 finish:
@@ -166,7 +171,7 @@ API_MOD_RELEASE(UART, void *device_handle)
                         _UART_LLD__turn_off(hdl->major);
 
                         _UART_mem[hdl->major] = NULL;
-                        sys_free(device_handle);
+                        sys_free(&device_handle);
 
                         return ESUCC;
                 }
@@ -239,7 +244,7 @@ API_MOD_WRITE(UART,
 
         int err = sys_mutex_lock(hdl->port_lock_tx_mtx, MTX_BLOCK_TIMEOUT);
         if (!err) {
-                u32_t timeout = CEILING((count * 10000), hdl->config.baud) + 100;
+                u32_t timeout = TX_WAIT_TIMEOUT;
 
                 hdl->Tx_buffer.src_ptr   = src;
                 hdl->Tx_buffer.data_size = count;
@@ -303,7 +308,9 @@ API_MOD_READ(UART,
                 *rdcnt = 0;
 
                 while (count--) {
-                        err = sys_semaphore_wait(hdl->data_read_sem, RX_WAIT_TIMEOUT);
+                        err = sys_semaphore_wait(hdl->data_read_sem,
+                                                 fattr.non_blocking_rd ?
+                                                 0 : RX_WAIT_TIMEOUT);
                         if (!err) {
                                 _UART_LLD__rx_hold(hdl->major);
                                 if (_UART_FIFO__read(&hdl->Rx_FIFO, dst)) {
@@ -339,8 +346,8 @@ API_MOD_IOCTL(UART, void *device_handle, int request, void *arg)
         if (arg) {
                 switch (request) {
                 case IOCTL_UART__SET_CONFIGURATION:
-                        _UART_LLD__configure(hdl->major, arg);
                         hdl->config = *cast(struct UART_config *, arg);
+                        _UART_LLD__configure(hdl->major, arg);
                         err = ESUCC;
                         break;
 

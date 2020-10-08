@@ -54,9 +54,24 @@ CFLAGS   = -c \
            -Wall \
            -Wextra \
            -Wparentheses \
+           -mno-unaligned-access \
            -Werror=implicit-function-declaration \
+           -Werror=int-conversion \
+           -Werror=incompatible-pointer-types \
+           -Werror=type-limits \
+           -Werror=return-type \
+           -Werror=implicit-int \
+           -Werror=parentheses \
+           -Werror=enum-compare \
+           -Werror=discarded-qualifiers \
+           -Werror=override-init \
+           -Werror=misleading-indentation \
+           -Werror=switch \
+           -Werror=stringop-overflow \
+           -Werror=overflow \
            -include ./config/config.h \
            -include ./build/defs.h \
+           -Wno-main\
            -DCOMPILE_EPOCH_TIME=$(shell $(DATE) "+%s") \
            $(CPUCONFIG_CFLAGS)
 
@@ -69,10 +84,18 @@ CXXFLAGS = -c \
            -fno-rtti \
            -fno-exceptions \
            -fno-unwind-tables \
+           -mno-unaligned-access \
            -Wall \
            -Wextra \
            -Wparentheses \
-           -Werror=implicit-function-declaration \
+           -Werror=parentheses \
+           -Werror=type-limits \
+           -Werror=return-type \
+           -Werror=enum-compare \
+           -Werror=misleading-indentation \
+           -Werror=switch \
+           -Werror=stringop-overflow \
+           -Werror=overflow \
            -include ./config/config.h \
            -DCOMPILE_EPOCH_TIME=$(shell $(DATE) "+%s") \
            -include ./build/defs.h \
@@ -81,6 +104,8 @@ CXXFLAGS = -c \
 LFLAGS   = -g \
            $(CPUCONFIG_LDFLAGS) \
            -Wl,--gc-sections \
+           -mno-unaligned-access \
+           -Wl,-u,vectors \
            -Wl,-Map=$(TARGET_DIR_NAME)/$(TARGET)/$(PROJECT).map,--cref,--no-warn-mismatch \
            -Wall \
            -specs=nano.specs -specs=rdimon.specs \
@@ -137,10 +162,12 @@ UNAME      = /bin/uname -s
 SIZEOF     = /usr/bin/stat -c %s
 MKDEP      = /usr/bin/makedepend
 WC         = /usr/bin/wc
+PYTHON3    = /usr/bin/python3
 CC         = $(TOOLCHAIN)gcc
 CXX        = $(TOOLCHAIN)g++
 LD         = $(TOOLCHAIN)g++
 AS         = $(TOOLCHAIN)gcc -x assembler-with-cpp
+AR         = $(TOOLCHAIN)ar
 OBJCOPY    = $(TOOLCHAIN)objcopy
 OBJDUMP    = $(TOOLCHAIN)objdump
 SIZE       = $(TOOLCHAIN)size
@@ -200,24 +227,54 @@ _HDRLOC_ARCH     = $(foreach file, $(HDRLOC_ARCH),$(SYS_LOC)/$(file))
 HDRLOC           = src/ $(_HDRLOC_PROGRAMS) $(_HDRLOC_LIB) $(_HDRLOC_CORE) $(_HDRLOC_NOARCH) $(_HDRLOC_ARCH)
 
 # defines all C sources
-CSRC    = $(foreach file, $(CSRC_PROGRAMS),$(APP_PRG_LOC)/$(file)) \
-          $(foreach file, $(CSRC_LIB),$(APP_LIB_LOC)/$(file)) \
-          $(foreach file, $(CSRC_CORE),$(SYS_LOC)/$(file)) \
-          $(foreach file, $(CSRC_NOARCH),$(SYS_LOC)/$(file)) \
-          $(foreach file, $(CSRC_ARCH),$(SYS_LOC)/$(file))
+_CSRC_PROGRAMS   = $(foreach file, $(CSRC_PROGRAMS),$(APP_PRG_LOC)/$(file))
+_CSRC_LIB        = $(foreach file, $(CSRC_LIB),$(APP_LIB_LOC)/$(file))
+_CSRC_CORE       = $(foreach file, $(CSRC_CORE),$(SYS_LOC)/$(file))
+_CSRC_NOARCH     = $(foreach file, $(CSRC_NOARCH),$(SYS_LOC)/$(file))
+_CSRC_ARCH       = $(foreach file, $(CSRC_ARCH),$(SYS_LOC)/$(file))
+CSRC             = $(_CSRC_PROGRAMS) $(_CSRC_LIB) $(_CSRC_CORE) $(_CSRC_NOARCH) $(_CSRC_ARCH)
 
 # defines all C++ sources
-CXXSRC  = $(foreach file, $(CXXSRC_PROGRAMS),$(APP_PRG_LOC)/$(file)) \
-          $(foreach file, $(CXXSRC_LIB),$(APP_LIB_LOC)/$(file)) \
-          $(foreach file, $(CXXSRC_CORE),$(SYS_LOC)/$(file)) \
-          $(foreach file, $(CXXSRC_NOARCH),$(SYS_LOC)/$(file)) \
-          $(foreach file, $(CXXSRC_ARCH),$(SYS_LOC)/$(file))
+_CXXSRC_PROGRAMS = $(foreach file, $(CXXSRC_PROGRAMS),$(APP_PRG_LOC)/$(file))
+_CXXSRC_LIB      = $(foreach file, $(CXXSRC_LIB),$(APP_LIB_LOC)/$(file))
+_CXXSRC_CORE     = $(foreach file, $(CXXSRC_CORE),$(SYS_LOC)/$(file))
+_CXXSRC_NOARCH   = $(foreach file, $(CXXSRC_NOARCH),$(SYS_LOC)/$(file))
+_CXXSRC_ARCH     = $(foreach file, $(CXXSRC_ARCH),$(SYS_LOC)/$(file))
+CXXSRC           = $(_CXXSRC_PROGRAMS) $(_CXXSRC_LIB) $(_CXXSRC_CORE) $(_CXXSRC_NOARCH) $(_CXXSRC_ARCH)
 
 # defines all assembler sources
-ASRC    = $(foreach file, $(ASRC_ARCH),$(SYS_LOC)/$(file))
+ASRC             = $(foreach file, $(ASRC_ARCH),$(SYS_LOC)/$(file))
 
-# defines objects names
-OBJECTS = $(ASRC:.$(AS_EXT)=.$(OBJ_EXT)) $(CSRC:.$(C_EXT)=.$(OBJ_EXT)) $(CXXSRC:.$(CXX_EXT)=.$(OBJ_EXT))
+# convert source files names to objects
+CSRCPROGRAMSOBJ        = $(_CSRC_PROGRAMS:.$(C_EXT)=.$(OBJ_EXT))
+CSRCLIBOBJ             = $(_CSRC_LIB:.$(C_EXT)=.$(OBJ_EXT))
+CSRCCOREOBJ            = $(_CSRC_CORE:.$(C_EXT)=.$(OBJ_EXT))
+CSRCNOARCHOBJ          = $(_CSRC_NOARCH:.$(C_EXT)=.$(OBJ_EXT))
+CSRCARCHOBJ            = $(_CSRC_ARCH:.$(C_EXT)=.$(OBJ_EXT))
+CSRCOBJ                = $(CSRC:.$(C_EXT)=.$(OBJ_EXT))
+CXXSRCPROGRAMSOBJ      = $(_CXXSRC_PROGRAMS:.$(CXX_EXT)=.$(OBJ_EXT))
+CXXSRCLIBOBJ           = $(_CXXSRC_LIB:.$(CXX_EXT)=.$(OBJ_EXT))
+CXXSRCCOREOBJ          = $(_CXXSRC_CORE:.$(CXX_EXT)=.$(OBJ_EXT))
+CXXSRCNOARCHOBJ        = $(_CXXSRC_NOARCH:.$(CXX_EXT)=.$(OBJ_EXT))
+CXXSRCARCHOBJ          = $(_CXXSRC_ARCH:.$(CXX_EXT)=.$(OBJ_EXT))
+CXXSRCOBJ              = $(CXXSRC:.$(CXX_EXT)=.$(OBJ_EXT))
+ASRCOBJ                = $(ASRC:.$(AS_EXT)=.$(OBJ_EXT))
+
+# defines objects paths
+OBJECTS_CSRC_PROGRAMS  = $(foreach var,$(CSRCPROGRAMSOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CSRC_LIB       = $(foreach var,$(CSRCLIBOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CSRC_CORE      = $(foreach var,$(CSRCCOREOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CSRC_NOARCH    = $(foreach var,$(CSRCNOARCHOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CSRC_ARCH      = $(foreach var,$(CSRCARCHOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CXXSRC_PROGRAMS= $(foreach var,$(CXXSRCPROGRAMSOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CXXSRC_LIB     = $(foreach var,$(CXXSRCLIBOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CXXSRC_CORE    = $(foreach var,$(CXXSRCCOREOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CXXSRC_NOARCH  = $(foreach var,$(CXXSRCNOARCHOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CXXSRC_ARCH    = $(foreach var,$(CXXSRCARCHOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_ASRC           = $(foreach var,$(ASRCOBJ),$(OBJ_PATH)/$(var))
+OBJECTS_CSRC           = $(OBJECTS_CSRC_PROGRAMS) $(OBJECTS_CSRC_LIB) $(OBJECTS_CSRC_CORE) $(OBJECTS_CSRC_NOARCH) $(OBJECTS_CSRC_ARCH)
+OBJECTS_CXXSRC         = $(OBJECTS_CXXSRC_PROGRAMS) $(OBJECTS_CXXSRC_LIB) $(OBJECTS_CXXSRC_CORE) $(OBJECTS_CXXSRC_NOARCH) $(OBJECTS_CXXSRC_ARCH)
+OBJECTS_ALL            = $(OBJECTS_ASRC) $(OBJECTS_CSRC) $(OBJECTS_CXXSRC)
 
 # functions
 FIND_GLOBAL_VARS_LIBS_PROGS = if [[ "$@" =~ $(APP_PRG_LOC) ]] || [[ "$@" =~ $(APP_LIB_LOC) ]]; then $(FINDGVAR) $@ || ($(RM) $@; exit 1); fi
@@ -231,7 +288,7 @@ all : generate apply_git_hooks
 	@$(MAKE) -s -j 1 -f$(THIS_MAKEFILE) build_start
 
 .PHONY : build_start
-build_start : dependencies buildobjects linkobjects hex status
+build_start : dependencies buildobjects buildarchive linkobjects hex status
 
 ####################################################################################################
 # help
@@ -301,11 +358,11 @@ hex :
 	@$(ECHO) 'Creating memory dump...'
 	@$(OBJDUMP) -x --syms $(TARGET_PATH)/$(PROJECT).elf > $(TARGET_PATH)/$(PROJECT).dmp
 
-	@$(ECHO) 'Creating extended listing....'
-	@$(OBJDUMP) -S $(TARGET_PATH)/$(PROJECT).elf > $(TARGET_PATH)/$(PROJECT).lst
+	#@$(ECHO) 'Creating extended listing....'
+	#@$(OBJDUMP) -S $(TARGET_PATH)/$(PROJECT).elf > $(TARGET_PATH)/$(PROJECT).lst
 
 	@$(ECHO) 'Creating objects size list...'
-	@$(SIZE) -B -t --common $(foreach var,$(OBJECTS),$(OBJ_PATH)/$(var)) > $(TARGET_PATH)/$(PROJECT).size
+	@$(SIZE) -B -t --common $(TARGET_PATH)/$(PROJECT).a > $(TARGET_PATH)/$(PROJECT).size
 
 	@$(ECHO) "Flash image size: $$($(SIZEOF) $(TARGET_PATH)/$(PROJECT).bin) bytes\n"
 
@@ -339,9 +396,8 @@ generate :
 	@$(SHELL) $(ADDDRIVERS) ./$(SYS_DRV_LOC) ./$(SYS_DRV_INC_LOC)
 
 	@$(ECHO) "Obtaining git hash..."
-	@$(ECHO) "#ifndef COMMIT_HASH" > build/defs.h
-	@$(ECHO) "#define COMMIT_HASH \"$(shell git rev-parse --short HEAD 2>/dev/null)"\" >> build/defs.h
-	@$(ECHO) "#endif" >> build/defs.h
+	@$(ECHO) "#define COMMIT_HASH \"$(shell git rev-parse --short HEAD 2>/dev/null)"\" > build/defs.h
+	@$(ECHO) "#define BRANCH_NAME \"$(shell git symbolic-ref --short HEAD 2>/dev/null)"\" >> build/defs.h
 
 ####################################################################################################
 # Start all generators
@@ -382,7 +438,25 @@ dependencies :
 .PHONY : linkobjects
 linkobjects :
 	@$(ECHO) "Linking..."
-	@$(LD) $(foreach var,$(OBJECTS),$(OBJ_PATH)/$(var)) $(LFLAGS) -o $(TARGET_PATH)/$(PROJECT).elf
+	@$(LD) $(TARGET_PATH)/$(PROJECT).a $(LFLAGS) -o $(TARGET_PATH)/$(PROJECT).elf
+	@#$(LD) $(OBJECTS_ALL) $(LFLAGS) -o $(TARGET_PATH)/$(PROJECT).elf
+
+####################################################################################################
+# create objects archive
+####################################################################################################
+buildarchive :
+	@$(ECHO) "Archiving..."
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_ASRC)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CSRC_PROGRAMS)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CSRC_LIB)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CSRC_CORE)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CSRC_NOARCH)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CSRC_ARCH)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CXXSRC_PROGRAMS)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CXXSRC_LIB)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CXXSRC_CORE)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CXXSRC_NOARCH)
+	@$(AR) rTPcs $(TARGET_PATH)/$(PROJECT).a $(OBJECTS_CXXSRC_ARCH)
 
 ####################################################################################################
 # build objects
@@ -392,7 +466,7 @@ buildobjects :
 	@$(ECHO) "Starting building objects up to $(THREAD) threads..."
 	@$(MAKE) -s -j$(THREAD) -f$(THIS_MAKEFILE) buildobjects_$(TARGET)
 
-buildobjects_$(TARGET) :$(foreach var,$(OBJECTS),$(OBJ_PATH)/$(var))
+buildobjects_$(TARGET) : $(OBJECTS_ALL)
 
 ####################################################################################################
 # rule used to compile object files from c sources
@@ -435,7 +509,7 @@ cleantarget :
 .PHONY : clean
 clean :
 	@$(ECHO) "Deleting all build files..."
-	-@$(RM) -r $(TARGET_DIR_NAME) ./doc/doxygen/html/ ./doc/doxygen/latex
+	-@$(RM) -r $(TARGET_DIR_NAME) ./doc/doxygen/html/ ./doc/doxygen/latex ./$(APP_LOC)/Makefile ./$(APP_LOC)/program_registration.c
 
 ####################################################################################################
 # flash target CPU by using ./tools/flash.sh script

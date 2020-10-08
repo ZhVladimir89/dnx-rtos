@@ -32,6 +32,7 @@
 #include "kernel/kwrapper.h"
 #include "kernel/ktypes.h"
 #include "kernel/errno.h"
+#include "kernel/sysfunc.h"
 #include "lib/cast.h"
 #include "event_groups.h"
 
@@ -57,6 +58,7 @@
 /*==============================================================================
   Exported object definitions
 ==============================================================================*/
+extern u64_t _tick_counter;
 
 /*==============================================================================
   Function definitions
@@ -70,7 +72,7 @@
 //==============================================================================
 static bool is_semaphore_valid(sem_t *sem)
 {
-        return sem && sem->header.type == RES_TYPE_SEMAPHORE && sem->object;
+        return _mm_is_object_in_heap(sem) && sem->header.type == RES_TYPE_SEMAPHORE && sem->object;
 }
 
 //==============================================================================
@@ -82,7 +84,7 @@ static bool is_semaphore_valid(sem_t *sem)
 //==============================================================================
 static bool is_mutex_valid(mutex_t *mtx)
 {
-        return mtx && mtx->header.type == RES_TYPE_MUTEX && mtx->object;
+        return _mm_is_object_in_heap(mtx) && mtx->header.type == RES_TYPE_MUTEX && mtx->object;
 }
 
 //==============================================================================
@@ -94,7 +96,7 @@ static bool is_mutex_valid(mutex_t *mtx)
 //==============================================================================
 static bool is_queue_valid(queue_t *queue)
 {
-        return queue && queue->header.type == RES_TYPE_QUEUE && queue->object;
+        return _mm_is_object_in_heap(queue) && queue->header.type == RES_TYPE_QUEUE && queue->object;
 }
 
 //==============================================================================
@@ -106,7 +108,7 @@ static bool is_queue_valid(queue_t *queue)
 //==============================================================================
 static bool is_flag_valid(flag_t *flag)
 {
-        return flag && flag->header.type == RES_TYPE_FLAG && flag->object;
+        return _mm_is_object_in_heap(flag) && flag->header.type == RES_TYPE_FLAG && flag->object;
 }
 
 //==============================================================================
@@ -126,9 +128,9 @@ void _kernel_start(void)
  * @return a OS time in milliseconds
  */
 //==============================================================================
-u32_t _kernel_get_time_ms(void)
+u64_t _kernel_get_time_ms(void)
 {
-        return (xTaskGetTickCount() * (1000/(configTICK_RATE_HZ)));
+        return (_tick_counter * (1000/(configTICK_RATE_HZ)));
 }
 
 //==============================================================================
@@ -138,9 +140,9 @@ u32_t _kernel_get_time_ms(void)
  * @return a tick counter value
  */
 //==============================================================================
-u32_t _kernel_get_tick_counter(void)
+u64_t _kernel_get_tick_counter(void)
 {
-        return (u32_t)xTaskGetTickCount();
+        return _tick_counter;
 }
 
 //==============================================================================
@@ -539,6 +541,7 @@ int _semaphore_destroy(sem_t *sem)
                 sem->object = NULL;
                 return _kfree(_MM_KRN, cast(void**, &sem));
         } else {
+                printk("Invalid semaphore object @ %p", sem);
                 return EINVAL;
         }
 }
@@ -559,6 +562,7 @@ int _semaphore_wait(sem_t *sem, const u32_t blocktime_ms)
                 bool r = xSemaphoreTake(sem->object, MS2TICK((TickType_t)blocktime_ms));
                 return r ? ESUCC : ETIME;
         } else {
+                printk("Invalid semaphore object @ %p", sem);
                 return EINVAL;
         }
 }
@@ -578,6 +582,7 @@ int _semaphore_signal(sem_t *sem)
                 bool r = xSemaphoreGive(sem->object);
                 return r ? ESUCC : EBUSY;
         } else {
+                printk("Invalid semaphore object @ %p", sem);
                 return EINVAL;
         }
 }
@@ -598,6 +603,7 @@ int _semaphore_get_value(sem_t *sem, size_t *value)
                 *value = (size_t)uxSemaphoreGetCount(sem->object);
                 return ESUCC;
         } else {
+                printk("Invalid semaphore object @ %p", sem);
                 return EINVAL;
         }
 }
@@ -708,6 +714,7 @@ int _mutex_destroy(mutex_t *mutex)
                 mutex->object = NULL;
                 return _kfree(_MM_KRN, cast(void**, &mutex));
         } else {
+                printk("Invalid mutex object @ %p", mutex);
                 return EINVAL;
         }
 }
@@ -734,6 +741,7 @@ int _mutex_lock(mutex_t *mutex, const u32_t blocktime_ms)
 
                 return status ? ESUCC : ETIME;
         } else {
+                printk("Invalid mutex object @ %p", mutex);
                 return EINVAL;
         }
 }
@@ -759,6 +767,7 @@ int _mutex_unlock(mutex_t *mutex)
 
                 return status ? ESUCC : EBUSY;
         } else {
+                printk("Invalid mutex object @ %p", mutex);
                 return EINVAL;
         }
 }
@@ -811,6 +820,7 @@ int _flag_destroy(flag_t *flag)
                 flag->object = NULL;
                 return _kfree(_MM_KRN, cast(void**, &flag));
         } else {
+                printk("Invalid flag object @ %p", flag);
                 return EINVAL;
         }
 }
@@ -836,6 +846,7 @@ int _flag_wait(flag_t *flag, u32_t bits, const u32_t blocktime_ms)
                 }
 
         } else {
+                printk("Invalid flag object @ %p", flag);
                 return EINVAL;
         }
 }
@@ -856,6 +867,7 @@ int _flag_set(flag_t *flag, u32_t bits)
                 xEventGroupSetBits(flag->object, bits);
                 return ESUCC;
         } else {
+                printk("Invalid flag object @ %p", flag);
                 return EINVAL;
         }
 }
@@ -876,6 +888,7 @@ int _flag_clear(flag_t *flag, u32_t bits)
                 xEventGroupClearBits(flag->object, bits);
                 return ESUCC;
         } else {
+                printk("Invalid flag object @ %p", flag);
                 return EINVAL;
         }
 }
@@ -894,6 +907,7 @@ u32_t _flag_get(flag_t *flag)
         if (is_flag_valid(flag)) {
                 return (u32_t)xEventGroupGetBits(flag->object);
         } else {
+                printk("Invalid flag object @ %p", flag);
                 return 0;
         }
 }
@@ -968,6 +982,7 @@ int _queue_destroy(queue_t *queue)
                 _kfree(_MM_KRN, cast(void**, &queue));
                 return ESUCC;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -987,6 +1002,7 @@ int _queue_reset(queue_t *queue)
                 BaseType_t r = xQueueReset(queue->object);
                 return r == pdTRUE ? ESUCC : EBUSY;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -1008,6 +1024,7 @@ int _queue_send(queue_t *queue, const void *item, const u32_t waittime_ms)
                 BaseType_t r = xQueueSend(queue->object, item, MS2TICK((TickType_t)waittime_ms));
                 return r == pdTRUE ? ESUCC : ENOSPC;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -1056,6 +1073,7 @@ int _queue_receive(queue_t *queue, void *item, const u32_t waittime_ms)
                 BaseType_t r = xQueueReceive(queue->object, item, MS2TICK((TickType_t)waittime_ms));
                 return r == pdTRUE ? ESUCC : ETIME;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -1104,6 +1122,7 @@ int _queue_receive_peek(queue_t *queue, void *item, const u32_t waittime_ms)
                 BaseType_t r = xQueuePeek(queue->object, item, MS2TICK((TickType_t)waittime_ms));
                 return r == pdTRUE ? ESUCC : EAGAIN;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -1125,6 +1144,7 @@ int _queue_get_number_of_items(queue_t *queue, size_t *items)
                 *items = nomsg;
                 return ESUCC;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }
@@ -1163,10 +1183,11 @@ int _queue_get_number_of_items_from_ISR(queue_t *queue, size_t *items)
 int _queue_get_space_available(queue_t *queue, size_t *items)
 {
         if (is_queue_valid(queue) && items) {
-                UBaseType_t nomsg = uxQueueSpacesAvailable(queue);
+                UBaseType_t nomsg = uxQueueSpacesAvailable(queue->object);
                 *items = nomsg;
                 return ESUCC;
         } else {
+                printk("Invalid queue object @ %p", queue);
                 return EINVAL;
         }
 }

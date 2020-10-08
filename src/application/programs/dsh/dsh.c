@@ -94,6 +94,7 @@ GLOBAL_VARIABLES_SECTION {
 /*==============================================================================
   Exported object definitions
 ==============================================================================*/
+PROGRAM_PARAMS(dsh, STACK_DEPTH_LOW);
 
 /*==============================================================================
   Function definitions
@@ -289,7 +290,7 @@ static bool is_exit_cmd(const char *cmd)
 //==============================================================================
 static bool is_clear_cmd(const char *cmd)
 {
-        return strncmp(cmd, "clear", 5) == 0 || strcmp(cmd, "clear") == 0;
+        return strncmp(cmd, "clear ", 6) == 0 || strcmp(cmd, "clear") == 0;
 }
 
 //==============================================================================
@@ -480,8 +481,8 @@ static bool start_program(char *master, char *slave, char *std_in,
         if (master && slave) {
                 pipe_name = calloc(sizeof(char), strlen(global->pipe_file) + 7);
                 if (pipe_name) {
-                        u32_t uptime = get_time_ms();
-                        snprintf(pipe_name, strlen(global->pipe_file) + 7, "%s%x", global->pipe_file, uptime);
+                        u64_t uptime = get_time_ms();
+                        snprintf(pipe_name, strlen(global->pipe_file) + 7, "%s%lx", global->pipe_file, uptime);
 
                         if (mkfifo(pipe_name, 0666)) {
                                 perror("sh");
@@ -774,7 +775,7 @@ static bool analyze_line(char *cmd)
  * @brief Terminal main function
  */
 //==============================================================================
-int_main(dsh, STACK_DEPTH_LOW, int argc, char *argv[])
+int main(int argc, char *argv[])
 {
         global->prompt_enable = true;
         global->input         = stdin;
@@ -783,7 +784,17 @@ int_main(dsh, STACK_DEPTH_LOW, int argc, char *argv[])
         if (argc >= 2) {
                 for (int i = 1; i < argc; i++) {
                         if (isstreq(argv[i], "-e")) {
-                                if (!analyze_line(argv[i+1])) {
+
+                                memset(global->line, 0, sizeof(global->line));
+
+                                for (int n = i + 1; n < argc; n++) {
+                                        strlcat(global->line, argv[n], sizeof(global->line));
+                                        strlcat(global->line, " ", sizeof(global->line));
+                                }
+
+                                char *cmd = trim_string(global->line);
+
+                                if (!analyze_line(cmd)) {
                                         print_fail_message(argv[i+1]);
                                 }
 

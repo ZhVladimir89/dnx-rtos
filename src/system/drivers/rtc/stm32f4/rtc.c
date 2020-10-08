@@ -48,8 +48,8 @@ Brief   Real-Time Clock Module
   Local object types
 ==============================================================================*/
 typedef struct {
-        u16_t apre;
-        u16_t spre;
+        u32_t apre;
+        u32_t spre;
 } pre_t;
 
 /*==============================================================================
@@ -91,17 +91,17 @@ static const pre_t PRE[] = {
  * @param[out]          **device_handle        device allocated memory
  * @param[in ]            major                major device number
  * @param[in ]            minor                minor device number
+ * @param[in ]            config               optional module configuration
  *
  * @return One of errno value (errno.h)
  */
 //==============================================================================
-API_MOD_INIT(RTC, void **device_handle, u8_t major, u8_t minor)
+API_MOD_INIT(RTC, void **device_handle, u8_t major, u8_t minor, const void *config)
 {
-        UNUSED_ARG1(device_handle);
-        UNUSED_ARG1(_module_name_);
+        UNUSED_ARG3(device_handle, config, _module_name_);
 
         if ((major != 0) or (minor != 0)) {
-                return EINVAL;
+                return ENODEV;
         }
 
         int err = ESUCC;
@@ -226,10 +226,6 @@ API_MOD_WRITE(RTC,
 {
         UNUSED_ARG2(device_handle, fattr);
 
-        if (*fpos != 0) {
-                return ESPIPE;
-        }
-
         int err = ESUCC;
 
         count = count > sizeof(time_t) ? sizeof(time_t) : count;
@@ -277,6 +273,7 @@ API_MOD_WRITE(RTC,
         sys_critical_section_end();
 
         *wrcnt = count;
+        *fpos  = 0;
 
         return err;
 }
@@ -304,10 +301,6 @@ API_MOD_READ(RTC,
              struct vfs_fattr fattr)
 {
         UNUSED_ARG2(device_handle, fattr);
-
-        if (*fpos != 0) {
-                return ESPIPE;
-        }
 
         count = count > sizeof(time_t) ? sizeof(time_t) : count;
 
@@ -342,6 +335,7 @@ API_MOD_READ(RTC,
         memcpy(dst, &timer, count);
 
         *rdcnt = count;
+        *fpos  = 0;
 
         return ESUCC;
 }
